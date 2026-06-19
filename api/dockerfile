@@ -1,0 +1,14 @@
+FROM golang:1.23-alpine AS builder
+WORKDIR /app
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+COPY . .
+RUN go mod download
+RUN swag init
+RUN GOARCH=arm64 GOOS=linux go build -o server .
+
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /app/server .
+RUN chmod +x ./server
+EXPOSE 3000
+CMD ["./server"]

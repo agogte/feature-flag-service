@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feature Flags — A Developer's Guide</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="logo">flagdocs</a>
+      <div class="nav-links">
+        <a href="#what">What</a>
+        <a href="#how">How</a>
+        <a href="#types">Types</a>
+        <a href="#rollout">Rollout</a>
+      </div>
+    </div>
+  </nav>
+
+  <header>
+    <div class="container">
+      <p class="eyebrow">Software Engineering</p>
+      <h1>Feature Flags</h1>
+      <p class="lead">Deploy code without releasing features. Ship faster, break less, roll back instantly.</p>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <section id="what">
+      <h2>What is a feature flag?</h2>
+      <p>
+        A feature flag (also called a feature toggle or feature switch) is a technique
+        that lets you enable or disable functionality at runtime — without deploying new code.
+        Instead of tying a release to a deployment, you wrap the feature in a conditional:
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="lang-tabs" data-group="what">
+            <button class="lang-tab active" data-lang="ts">TypeScript</button>
+            <button class="lang-tab" data-lang="go">Go</button>
+          </div>
+        </div>
+        <pre><code class="snippet" data-group="what" data-lang="ts">import { FlagClient } from './flag-client';
+
+const flags = new FlagClient({ endpoint: 'http://flags.internal' });
+await flags.init();
+
+if (flags.isEnabled('new-checkout-flow', { userId: user.id })) {
+  renderNewCheckout();
+} else {
+  renderOldCheckout();
+}</code></pre>
+        <pre style="display:none"><code class="snippet" data-group="what" data-lang="go">client := flagclient.New("http://flags.internal")
+if err := client.Init(); err != nil {
+    log.Fatal(err)
+}
+
+enabled, _ := client.IsEnabled("new-checkout-flow", map[string]string{
+    "userId": user.ID,
+})
+
+if enabled {
+    renderNewCheckout(w, r)
+} else {
+    renderOldCheckout(w, r)
+}</code></pre>
+      </div>
+
+      <p>
+        The flag's value is controlled externally by an API or config store.
+        Your app doesn't know or care why the flag is on or off. It just asks and reacts.
+      </p>
+    </section>
+
+    <section id="how">
+      <h2>How flags are evaluated</h2>
+      <p>
+        When your app calls <code>isEnabled(flagKey, context)</code>, the flag service
+        runs the flag's rules against the context you passed. Rules are evaluated in order —
+        the first match wins.
+      </p>
+      <div class="rule-list">
+        <div class="rule">
+          <div class="rule-num">1</div>
+          <div>
+            <strong>Override list</strong>
+            <p>Explicit user IDs that always get the feature. Used for internal staff and beta testers.</p>
+          </div>
+        </div>
+        <div class="rule">
+          <div class="rule-num">2</div>
+          <div>
+            <strong>Segment rules</strong>
+            <p>Attribute-based targeting — e.g. "all users on the enterprise plan" or "all users in Germany."</p>
+          </div>
+        </div>
+        <div class="rule">
+          <div class="rule-num">3</div>
+          <div>
+            <strong>Percentage rollout</strong>
+            <p>Release to a consistent slice of users via a hash function. Same user, same result, every time.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="types">
+      <h2>Types of feature flags</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h3>Release flags</h3>
+          <p>Hide incomplete features in production. Deploy continuously without exposing half-built work.</p>
+          <span class="tag">Short-lived</span>
+        </div>
+        <div class="card">
+          <h3>Experiment flags</h3>
+          <p>A/B test two implementations. Measure which performs better before committing to one path.</p>
+          <span class="tag">Short-lived</span>
+        </div>
+        <div class="card">
+          <h3>Ops flags</h3>
+          <p>Kill switches for dangerous features. Turn off a misbehaving service without a deploy.</p>
+          <span class="tag">Long-lived</span>
+        </div>
+        <div class="card">
+          <h3>Permission flags</h3>
+          <p>Gate features by plan or role. Enterprise users get one experience, free users get another.</p>
+          <span class="tag">Long-lived</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="rollout">
+      <h2>Percentage rollout and sticky bucketing</h2>
+      <p>
+        When you roll out to 10% of users, those users need a consistent experience —
+        not randomly see the feature on one page load and miss it on the next.
+        This is solved with a hash:
+      </p>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="lang-tabs" data-group="rollout">
+            <button class="lang-tab active" data-lang="ts">TypeScript</button>
+            <button class="lang-tab" data-lang="go">Go</button>
+          </div>
+        </div>
+        <pre><code class="snippet" data-group="rollout" data-lang="ts">import crypto from 'crypto';
+
+function getUserBucket(flagKey: string, userId: string): number {
+  const input = `${flagKey}:${userId}`;
+  const hash = crypto.createHash('md5').update(input).digest('hex');
+  return parseInt(hash.slice(0, 8), 16) % 100; // 0–99
+}
+
+// User is in rollout if their bucket < rolloutPercentage
+const inRollout: boolean = getUserBucket('new-checkout', userId) < 10;</code></pre>
+        <pre style="display:none"><code class="snippet" data-group="rollout" data-lang="go">import (
+    "crypto/md5"
+    "encoding/binary"
+    "fmt"
+)
+
+func getUserBucket(flagKey, userID string) int {
+    input := fmt.Sprintf("%s:%s", flagKey, userID)
+    sum := md5.Sum([]byte(input))
+    // Take first 4 bytes as a uint32, mod 100
+    num := binary.BigEndian.Uint32(sum[:4])
+    return int(num % 100) // 0–99
+}
+
+// User is in rollout if their bucket < rolloutPercentage
+inRollout := getUserBucket("new-checkout", userID) < 10</code></pre>
+      </div>
+      <p>
+        Because the hash is deterministic, <code>user_42</code> always lands in the same bucket
+        across every server and every request. Raise the rollout from 10% to 50% and
+        users already in it stay in — they just get more company.
+      </p>
+    </section>
+
+    <section id="why">
+      <h2>Why not just deploy the feature?</h2>
+      <p>
+        A deployment rollback takes 10–20 minutes and often requires waking someone up.
+        A flag rollback is flipping a boolean — it propagates in seconds.
+        Feature flags decouple <em>deploying code</em> from <em>releasing features</em>,
+        which is one of the highest-leverage habits an engineering team can build.
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>flagdocs — a learning project. Not affiliated with LaunchDarkly or any commercial flag service.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+
+</body>
+</html>

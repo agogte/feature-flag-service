@@ -1,0 +1,15 @@
+services:
+  api:
+    build: ./api
+    platform: linux/arm64
+    ports: 
+      - "3000:3000"
+
+  app:
+    build:
+      context: ./app
+    platform: linux/arm64
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
