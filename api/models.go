@@ -38,3 +38,11 @@ type Rule struct {
 	Value     string   `json:"value"`
 	Rollout   int      `json:"rollout"`
 }
+
+var (
+	evalCount   int64     // total evaluate calls since boot
+	errorCount  int64     // total failed requests since boot
+	lastError   string    // most recent error message
+	lastErrorAt time.Time // when it happened
+	startedAt   = time.Now()
+)

@@ -41,6 +41,8 @@ Flags are persisted to a sqlite file at `api/data/flags.db` (created automatical
 | `POST` | `/flags` | Create a flag |
 | `PATCH` | `/flags/{key}` | Update a flag's `isEnabled`/`rules`/`description` |
 | `GET` | `/flags/{key}/evaluate?userId=...` | Evaluate a flag for a user |
+| `GET` | `/health` | Liveness/readiness check (pings the database) |
+| `GET` | `/metrics` | Flag count, eval count, error count, uptime |
 
 Example — roll a flag out to 100% of users:
 
@@ -50,4 +52,14 @@ curl -X PATCH http://localhost:3000/flags/dark-mode \
   -d '{ "isEnabled": true, "rules": [{ "type": "percentage", "rollout": 100 }] }'
 
 curl "http://localhost:3000/flags/dark-mode/evaluate?userId=user_942"
+```
+
+Ops endpoints:
+
+```bash
+curl http://localhost:3000/health
+# { "status": "Ok", "database": true, "uptimeSeconds": 42 }
+
+curl http://localhost:3000/metrics
+# { "flagCount": 2, "evalCount": 17, "errorCount": 1, "uptimeSeconds": 42, "lastError": "...", "lastErrorAt": "..." }
 ```
