@@ -17,7 +17,7 @@ Swagger UI:
 ## Project layout
 
 ```
-api/    Go API (flag store, evaluation engine, swagger docs)
+api/    Go API (sqlite-backed flag store, evaluation engine, swagger docs)
 app/    Static docs site that reads the dark-mode flag and toggles its theme
 docker-compose.yml
 ```
@@ -30,6 +30,8 @@ docker-compose up --build
 
 - API: http://localhost:3000 (Swagger UI at `/swagger/index.html`)
 - App: http://localhost:8080
+
+Flags are persisted to a sqlite file at `api/data/flags.db` (created automatically on first run). A `dark-mode` flag is seeded on startup if it doesn't already exist, so the API is usable immediately without any setup.
 
 ## API quick reference
 

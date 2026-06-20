@@ -24,6 +24,17 @@ definitions:
           $ref: '#/definitions/main.Rule'
         type: array
     type: object
+  main.FlagPatch:
+    properties:
+      description:
+        type: string
+      isEnabled:
+        type: boolean
+      rules:
+        items:
+          $ref: '#/definitions/main.Rule'
+        type: array
+    type: object
   main.Rule:
     properties:
       attribute:
@@ -103,7 +114,7 @@ paths:
         name: flag
         required: true
         schema:
-          $ref: '#/definitions/main.Flag'
+          $ref: '#/definitions/main.FlagPatch'
       produces:
       - application/json
       responses:

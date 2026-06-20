@@ -9,23 +9,16 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"time"
 
+	db "github.com/agogte/feature-flag-service/api/database"
 	_ "github.com/agogte/feature-flag-service/api/docs"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func main() {
 	//seeding one flag to test immediately
-	store["dark-mode"] = Flag{
-		Key:         "dark-mode",
-		Description: "Switch UI to dark mode",
-		IsEnabled:   true,
-		Rules: []Rule{
-			{Type: "percentage", Rollout: 50},
-		},
-		CreatedAt: time.Now(),
-	}
+	db.Init("./data/flags.db")
+	defer db.DB.Close()
 
 	http.HandleFunc("/", router)
 	http.HandleFunc("/swagger/", httpSwagger.WrapHandler)
