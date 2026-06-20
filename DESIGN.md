@@ -59,6 +59,10 @@ Flags are persisted in sqlite (`github.com/mattn/go-sqlite3`), via the `api/data
 
 There's no volume mount for the sqlite file in `docker-compose.yml`, so data does not survive a container recreate — same lifetime as the in-memory store this replaced. Add a volume on `/app/data` if persistence across restarts is needed.
 
+### Why no Redis (or any cache)
+
+There's deliberately no cache layer in front of the flag store. sqlite is an embedded, on-disk database that runs in-process — there's no network hop to a separate cache or database server, so reads are already as fast as a local file read gets. Bolting on Redis here would add a second moving part (another connection to manage, another thing that can be down) for speed sqlite is already providing for free at this scale. If read volume ever outgrows a single sqlite file, the right next step is probably a proper RDBMS with read replicas, not a cache in front of sqlite.
+
 ## Partial updates (`PATCH /flags/{key}`)
 
 The handler reads the existing flag from sqlite, overlays only the fields present in the request body, then writes the merged flag back with `db.UpdateFlag`. The request body is a dedicated `FlagPatch` type, not `Flag`:
