@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	db "github.com/agogte/feature-flag-service/api/database"
 )
+
+var lastErrorMu sync.Mutex
 
 func writeJson(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -67,4 +72,27 @@ func toDBFlag(f Flag) db.Flag {
 		Rules:       rules,
 		CreatedAt:   f.CreatedAt,
 	}
+}
+
+// recordEval increments the eval counter. Call this
+// at the top of handleEvaluate.
+func recordEval() {
+	atomic.AddInt64(&evalCount, 1)
+}
+
+// recordError stores the most recent error and bumps
+// the error counter. Call this anywhere you currently
+// return a 4xx/5xx from a handler.
+func recordError(msg string) {
+	atomic.AddInt64(&errorCount, 1)
+	lastErrorMu.Lock()
+	lastError = msg
+	lastErrorAt = time.Now()
+	lastErrorMu.Unlock()
+}
+
+func readLastError() (string, time.Time) {
+	lastErrorMu.Lock()
+	defer lastErrorMu.Unlock()
+	return lastError, lastErrorAt
 }

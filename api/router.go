@@ -24,6 +24,10 @@ func router(w http.ResponseWriter, r *http.Request) {
 		handleEvaluate(w, r)
 	case strings.HasPrefix(path, "/flags/") && !strings.HasSuffix(path, "/evaluate"):
 		handleUpdateFlag(w, r)
+	case path == "/health":
+		handleHealth(w, r)
+	case path == "/metrics":
+		handleMetrics(w, r)
 	default:
 		writeJson(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

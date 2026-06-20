@@ -89,4 +89,18 @@ The frontend must read `data.isEnabled` (not `data.enabled`) — a prior mismatc
 
 ## Why a hand-rolled router
 
-The route set is small and stable (`/flags`, `/flags/{key}`, `/flags/{key}/evaluate`), so a `switch` on path patterns in `router.go` avoids pulling in a routing framework. Swagger annotations are bound per-function by `swag`, so each HTTP verb on a given path needs its own handler function (e.g. `handleListFlags` / `handleCreateFlag`) rather than one function branching on `r.Method` — otherwise only the last annotation block above the function gets picked up.
+The route set is small and stable (`/flags`, `/flags/{key}`, `/flags/{key}/evaluate`, `/health`, `/metrics`), so a `switch` on path patterns in `router.go` avoids pulling in a routing framework. Swagger annotations are bound per-function by `swag`, so each HTTP verb on a given path needs its own handler function (e.g. `handleListFlags` / `handleCreateFlag`) rather than one function branching on `r.Method` — otherwise only the last annotation block above the function gets picked up.
+
+## Ops endpoints
+
+Two routes exist purely for operability, not flag management:
+
+- **`GET /health`** — pings the sqlite connection (`db.DB.Ping()`) and reports `200`/`{"status":"Ok"}` if reachable, `503`/`{"status":"degraded"}` if not. Suitable for a container orchestrator's liveness/readiness probe.
+- **`GET /metrics`** — returns `flagCount` (live `db.GetAllFlags()` count), `evalCount`/`errorCount` (in-process counters since boot), `uptimeSeconds`, and the most recent error message/timestamp if one occurred. This is a lightweight, dependency-free alternative to wiring up Prometheus — fine for a service this size, but it resets on every restart since the counters aren't persisted.
+
+Counters live in package-level vars in `models.go` (`evalCount`, `errorCount`, `lastError`, `lastErrorAt`, `startedAt`) and are updated via two helpers in `helpers.go`:
+
+- `recordEval()` — called once at the top of `handleEvaluate`, increments `evalCount` atomically.
+- `recordError(msg)` — called at every 4xx/5xx response site across the flag handlers, increments `errorCount` atomically and records `msg` as `lastError`.
+
+`evalCount`/`errorCount` are `int64`s updated via `sync/atomic`, since multiple requests can hit a handler concurrently. `lastError`/`lastErrorAt` are a plain `string`/`time.Time` pair, which atomics can't protect — those are guarded by a dedicated `lastErrorMu sync.Mutex` instead, written through `recordError` and read through `readLastError()`. (Reusing the same mutex that guards the sqlite handle would've been wrong — `lastError` has nothing to do with the database — so it's a separate, narrowly-scoped lock.)

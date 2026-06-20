@@ -170,4 +170,38 @@ paths:
       summary: Evaluate a flag for a user
       tags:
       - flags
+  /health:
+    get:
+      description: Returns 200 if the service is up and the database is reachable.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health check
+      tags:
+      - ops
+  /metrics:
+    get:
+      description: Flag count, evaluation count, and last error seen — enough to spot
+        trouble without reading logs.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Basic service metrics
+      tags:
+      - ops
 swagger: "2.0"
