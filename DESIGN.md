@@ -2,7 +2,7 @@
 
 ## Components
 
-- **api/** — Go HTTP service. In-memory flag store (`map[string]Flag` guarded by a `sync.RWMutex`), a hand-rolled router, and an evaluation engine. Swagger docs are generated from annotations via `swag init`.
+- **api/** — Go HTTP service. sqlite-backed flag store (`api/database`), a hand-rolled router, and an evaluation engine. Swagger docs are generated from annotations via `swag init`.
 - **app/** — Static site (nginx-served) demonstrating flag consumption. On load it calls `/flags/dark-mode/evaluate` and toggles a `dark` CSS class based on the response.
 
 ## Data model
@@ -47,17 +47,31 @@ func getUserBucket(flagKey, userId string) int {
 
 A user lands in the rollout if `bucket < rule.Rollout`. Hashing `flagKey:userId` means the same user gets a consistent answer for a given flag across requests and servers, and raising the rollout percentage only ever adds users — it never evicts ones already in.
 
-## Concurrency
+## Storage
 
-The store is a plain map protected by `mu sync.RWMutex`. Reads (`GET /flags`, evaluate) take `RLock`; writes (`POST /flags`, `PATCH /flags/{key}`) take `Lock`. There's no persistence — state resets on restart, with `dark-mode` re-seeded in `main.go`.
+Flags are persisted in sqlite (`github.com/mattn/go-sqlite3`), via the `api/database` package:
+
+- `db.Init(path)` opens the database, creates the `flags` table if it doesn't exist, and seeds a `dark-mode` flag (`INSERT OR IGNORE`, so it's a no-op after the first run). The parent directory of `path` is created automatically if missing.
+- `Rules` is stored as a JSON-encoded text column rather than a normalized table — rule shapes vary by type (`override`/`segment`/`percentage` each use a different subset of fields), so a flexible blob avoids a wide, mostly-NULL schema. `db.Flag`/`db.Rule` mirror the `main` package's `Flag`/`Rule` but live in `database` to avoid an import cycle (`main` depends on `database`, not the reverse); `fromDBFlag`/`toDBFlag` in `api/helpers.go` convert between them.
+- `CreateFlag` does a plain `INSERT` and relies on the `key` primary key to reject duplicates; `UpdateFlag` is a full-row `UPDATE` keyed on `key`.
+- No connection pooling concerns — sqlite with the default driver settings is fine at this scale, and the single `*sql.DB` handle is safe for concurrent use (the driver serializes writes internally).
+- No migrations: schema changes mean dropping/recreating the dev database file. The seeded `dark-mode` row means a fresh `flags.db` is immediately useful without any manual setup.
+
+There's no volume mount for the sqlite file in `docker-compose.yml`, so data does not survive a container recreate — same lifetime as the in-memory store this replaced. Add a volume on `/app/data` if persistence across restarts is needed.
 
 ## Partial updates (`PATCH /flags/{key}`)
 
-The handler reads the existing flag, then overlays only the fields present in the request body:
+The handler reads the existing flag from sqlite, overlays only the fields present in the request body, then writes the merged flag back with `db.UpdateFlag`. The request body is a dedicated `FlagPatch` type, not `Flag`:
 
-- `Rules` replaces wholesale if non-nil (no per-rule merging).
-- `Description` replaces if non-empty.
-- `IsEnabled` always overwrites — there's no way to distinguish "field omitted" from "explicitly set to `false`" with a plain `bool`, so a PATCH that omits `isEnabled` will reset it to `false`. Callers should always send `isEnabled` explicitly.
+```go
+type FlagPatch struct {
+    Description *string `json:"description"`
+    IsEnabled   *bool   `json:"isEnabled"`
+    Rules       []Rule  `json:"rules"`
+}
+```
+
+`Description`/`IsEnabled` are pointers so the handler can tell "field omitted" apart from "field explicitly set to its zero value." A bare `bool` couldn't make that distinction — an earlier version reused `Flag` as the patch body, so any PATCH that omitted `isEnabled` silently reset it to `false`. `Rules` still replaces wholesale when present (no per-rule merging) — to change a single rollout percentage, send just that rule: `{"rules":[{"type":"percentage","rollout":100}]}`.
 
 ## API/frontend contract
 

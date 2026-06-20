@@ -1,7 +1,6 @@
 package main
 
 import (
-	"sync"
 	"time"
 )
 
@@ -12,6 +11,15 @@ type Flag struct {
 	IsEnabled   bool      `json:"isEnabled"`
 	Rules       []Rule    `json:"rules"`
 	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// FlagPatch represents a partial update to a flag. Pointer fields let the
+// handler tell "field omitted" apart from "field explicitly set to its zero
+// value" (e.g. isEnabled: false).
+type FlagPatch struct {
+	Description *string `json:"description"`
+	IsEnabled   *bool   `json:"isEnabled"`
+	Rules       []Rule  `json:"rules"`
 }
 
 // EvalResult is the response from the evaluate endpoint.
@@ -30,8 +38,3 @@ type Rule struct {
 	Value     string   `json:"value"`
 	Rollout   int      `json:"rollout"`
 }
-
-var (
-	store = map[string]Flag{}
-	mu    sync.RWMutex
-)

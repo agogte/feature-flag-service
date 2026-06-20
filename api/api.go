@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"time"
+
+	db "github.com/agogte/feature-flag-service/api/database"
 )
 
 func handleFlags(w http.ResponseWriter, r *http.Request) {
@@ -23,12 +25,12 @@ func handleFlags(w http.ResponseWriter, r *http.Request) {
 // @Success     200  {array}   Flag
 // @Router      /flags [get]
 func handleListFlags(w http.ResponseWriter, r *http.Request) {
-	mu.RLock()
-	flags := make([]Flag, 0, len(store))
-	for _, f := range store {
-		flags = append(flags, f)
+	dbFlags := db.GetAllFlags()
+	flags := make([]Flag, 0, len(dbFlags))
+	for _, f := range dbFlags {
+		flags = append(flags, fromDBFlag(f))
 	}
-	mu.RUnlock()
+
 	writeJson(w, http.StatusOK, flags)
 }
 
@@ -57,9 +59,11 @@ func handleCreateFlag(w http.ResponseWriter, r *http.Request) {
 		body.Rules = []Rule{}
 	}
 
-	mu.Lock()
-	store[body.Key] = body
-	mu.Unlock()
+	if err := db.CreateFlag(toDBFlag(body)); err != nil {
+		writeJson(w, http.StatusConflict, map[string]string{"error": "flag already exists"})
+		return
+	}
+
 	writeJson(w, http.StatusCreated, body)
 }
 
@@ -77,6 +81,7 @@ func handleCreateFlag(w http.ResponseWriter, r *http.Request) {
 func handleEvaluate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJson(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
 	}
 
 	key := flagKeyFromPath(r.URL.Path)
@@ -87,14 +92,13 @@ func handleEvaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mu.RLock()
-	flag, ok := store[key]
-	mu.RUnlock()
-
+	dbFlag, ok := db.GetFlag(key)
 	if !ok {
 		writeJson(w, http.StatusNotFound, map[string]string{"error": "flag not found"})
 		return
 	}
+
+	flag := fromDBFlag(dbFlag)
 
 	context := map[string]string{}
 	for k, vals := range r.URL.Query() {
@@ -112,8 +116,8 @@ func handleEvaluate(w http.ResponseWriter, r *http.Request) {
 // @Tags        flags
 // @Accept      json
 // @Produce     json
-// @Param       key   path      string  true  "Flag key"
-// @Param       flag  body      Flag    true  "Fields to update"
+// @Param       key   path      string     true  "Flag key"
+// @Param       flag  body      FlagPatch  true  "Fields to update"
 // @Success     200   {object}  Flag
 // @Failure     404   {object}  map[string]string
 // @Router      /flags/{key} [patch]
@@ -125,34 +129,36 @@ func handleUpdateFlag(w http.ResponseWriter, r *http.Request) {
 
 	key := flagKeyFromPath(r.URL.Path)
 
-	mu.RLock()
-	existing, ok := store[key]
-	mu.RUnlock()
+	dbFlag, ok := db.GetFlag(key)
 
 	if !ok {
 		writeJson(w, http.StatusNotFound, map[string]string{"error": "flag not found"})
 		return
 	}
 
-	var body Flag
+	existing := fromDBFlag(dbFlag)
+
+	var body FlagPatch
 	if err := readJson(r, &body); err != nil {
 		writeJson(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
 
-	// Only update fields that were sent
+	// Only update fields that were actually present in the request
 	if body.Rules != nil {
 		existing.Rules = body.Rules
 	}
-	if body.Description != "" {
-		existing.Description = body.Description
+	if body.Description != nil {
+		existing.Description = *body.Description
 	}
-	// Explicitly check IsEnabled since false is a valid value
-	existing.IsEnabled = body.IsEnabled
+	if body.IsEnabled != nil {
+		existing.IsEnabled = *body.IsEnabled
+	}
 
-	mu.Lock()
-	store[key] = existing
-	mu.Unlock()
+	if err := db.UpdateFlag(toDBFlag(existing)); err != nil {
+		writeJson(w, http.StatusInternalServerError, map[string]string{"error": "update flag failed"})
+		return
+	}
 
 	writeJson(w, http.StatusOK, existing)
 }

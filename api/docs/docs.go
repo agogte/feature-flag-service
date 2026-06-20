@@ -103,7 +103,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.Flag"
+                            "$ref": "#/definitions/main.FlagPatch"
                         }
                     }
                 ],
@@ -215,6 +215,23 @@ const docTemplate = `{
                 },
                 "key": {
                     "type": "string"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.Rule"
+                    }
+                }
+            }
+        },
+        "main.FlagPatch": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "isEnabled": {
+                    "type": "boolean"
                 },
                 "rules": {
                     "type": "array",
