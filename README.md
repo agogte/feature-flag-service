@@ -1,5 +1,15 @@
 # Feature Flag Service
 
+<p align="center">
+  <img alt="Go" src="https://img.shields.io/badge/go-1.23-00ADD8?logo=go&logoColor=white">
+  <img alt="SQLite" src="https://img.shields.io/badge/storage-SQLite-003B57?logo=sqlite&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white">
+  <img alt="OpenAPI" src="https://img.shields.io/badge/docs-Swagger-85EA2D?logo=swagger&logoColor=black">
+  <img alt="Feature flags" src="https://img.shields.io/badge/feature%20flags-percentage%20rollouts-8A2BE2">
+</p>
+
+<p align="center"><b>English</b> · <a href="README.fr.md">Français</a></p>
+
 A lightweight feature flag API with rule-based evaluation (override lists, segment targeting, and sticky percentage rollouts), plus a static docs site that demos it in light/dark mode via a live flag.
 
 See [DESIGN.md](DESIGN.md) for architecture and evaluation-engine details.
