@@ -1,6 +1,7 @@
 # Feature Flag Service
 
 <p align="center">
+  <a href="https://github.com/agogte/feature-flag-service/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/agogte/feature-flag-service/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/go-1.23-00ADD8?logo=go&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/storage-SQLite-003B57?logo=sqlite&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white">
